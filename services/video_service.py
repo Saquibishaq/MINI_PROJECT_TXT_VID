@@ -1,88 +1,61 @@
-import os
-import torch
-from transformers import GPT2Tokenizer, GPT2LMHeadModel
-from moviepy.editor import *
+import asyncio
+import aiohttp
 from gtts import gTTS
-from diffusers import StableDiffusionPipeline
+import moviepy.editor as mp
+import requests
 
-# Load GPT-2 model and tokenizer for text generation
-device = "cuda" if torch.cuda.is_available() else "cpu"
-gpt2_tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-gpt2_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+def generate_voice(text, filename='voice.mp3'):
+    tts = gTTS(text, lang='en')
+    tts.save(filename)
 
-# Load Stable Diffusion for image generation
-pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4").to(device)
+async def download_video(session, video_url, index):
+    async with session.get(video_url) as response:
+        file_name = f'video_{index}.mp4'
+        with open(file_name, 'wb') as f:
+            f.write(await response.read())
+        return file_name
 
-# Ensure directories exist
-os.makedirs('audio', exist_ok=True)
-os.makedirs('assets', exist_ok=True)
-os.makedirs('output', exist_ok=True)
-
-# Text-to-Story Generation using GPT-2
-def generate_story(prompt, max_length=300):
-    inputs = gpt2_tokenizer(prompt, return_tensors="pt").to(device)
-    output = gpt2_model.generate(inputs['input_ids'], max_length=max_length, num_return_sequences=1, no_repeat_ngram_size=2)
-    story = gpt2_tokenizer.decode(output[0], skip_special_tokens=True)
-    return story
-
-# Generate narration using local TTS (gTTS here for simplicity)
-def generate_narration(text, filename="narration.mp3"):
-    tts = gTTS(text)
-    tts.save(os.path.join('audio', filename))
-
-# Generate images using Stable Diffusion
-def generate_images_from_story(story, num_images=5):
-    sentences = story.split(". ")  # Split story into sentences for generating images
-    images = []
-    for i, sentence in enumerate(sentences[:num_images]):
-        print(f"Generating image {i+1}/{num_images} for: {sentence}")
-        image = pipe(sentence).images[0]
-        image_path = f'assets/image_{i}.png'
-        image.save(image_path)
-        images.append(image_path)
-    return images
-
-# Assemble video with images and narration
-def create_video(images, voice_file, output_file='output_video.mp4', min_duration=60):
-    clips = []
+async def fetch_videos(query, num_videos=5):
+    api_key = 'H1Z6bHv1l3etmP1J3wQl9Q1l3JNaL5PoypRPlQ9YNu9klqVOjGOVFWys'
+    url = f'https://api.pexels.com/videos/search?query={query}&per_page={num_videos}'
+    headers = {'Authorization': api_key}
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    video_links = [video['video_files'][0]['link'] for video in data['videos']]
     
-    # Load the audio narration
-    audio = AudioFileClip(voice_file)
-    audio_duration = audio.duration
+    async with aiohttp.ClientSession() as session:
+        download_tasks = [download_video(session, link, i) for i, link in enumerate(video_links)]
+        return await asyncio.gather(*download_tasks)
 
-    # Final video duration calculation
-    final_video_duration = max(audio_duration, min_duration)
-    num_images = len(images)
-    duration_per_image = final_video_duration / num_images if num_images > 0 else 1
+def create_final_video(video_files, voice_file, duration, output_file='final_video.mp4'):
+    clips = [mp.VideoFileClip(video_file).subclip(0, 10) for video_file in video_files]
+    final_video = mp.concatenate_videoclips(clips, method="compose")
+    audio = mp.AudioFileClip(voice_file)
+    final_duration = duration * 60
+    audio = audio.subclip(0, min(final_duration, audio.duration))
+    final_video = final_video.set_audio(audio)
+    final_video.write_videofile(output_file, codec='libx264', audio_codec='aac', threads=4, preset='fast')
 
-    for img_path in images:
-        img_clip = ImageClip(img_path).set_duration(duration_per_image).set_fps(24)
-        clips.append(img_clip)
-
-    # Concatenate images and set audio
-    video = concatenate_videoclips(clips).set_audio(audio)
-
-    # Write video to file
-    video.write_videofile(output_file, codec='libx264', fps=24)
-
-# Main function to drive the process
-def main():
-    prompt = input("Enter a prompt for the story: ")
-    min_duration = int(input("Enter the minimum video duration (seconds): "))
+async def main():
+    story = input("Please enter your full text story: ")
+    duration = int(input("Enter the duration in minutes: "))
     
-    # Step 1: Generate a story from the prompt
-    story = generate_story(prompt)
-    print("Generated Story: ", story)
-    
-    # Step 2: Generate narration for the story
-    generate_narration(story, filename="narration.mp3")
-    
-    # Step 3: Generate images using Stable Diffusion for the story
-    images = generate_images_from_story(story, num_images=10)
+    generate_voice(story)
 
-    # Step 4: Create video from images and narration
-    create_video(images, 'audio/narration.mp3', output_file="final_animation.mp4", min_duration=min_duration)
-    print("Video created successfully!")
+    print("Choose a topic for the video:")
+    topics = [
+        "Fantasy", "Adventure", "Mystery", "Fairy Tale",
+        "Horror", "Romance", "Historical Fiction", "Science Fiction",
+        "Fable", "Mythology", "Comedy", "Drama",
+        "Thriller", "Superhero", "Children's Story"
+    ]
+    for i, topic in enumerate(topics, start=1):
+        print(f"{i}. {topic}")
 
-if __name__ == "__main__":
-    main()
+    video_topic_index = int(input("Enter the number corresponding to the topic: ")) - 1
+    selected_topic = topics[video_topic_index % len(topics)]
+    
+    video_files = await fetch_videos(selected_topic, num_videos=5)
+    create_final_video(video_files, 'voice.mp3', duration)
+
+main()
