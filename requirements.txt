@@ -1,8 +1,8 @@
+#diffusers b hai
 Flask
 gtts
 moviepy
 Pillow
 transformers
 requests
-diffusers
 gunicorn
