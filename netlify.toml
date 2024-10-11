@@ -1,0 +1,9 @@
+[build]
+  publish = "dist" # Specify your build output directory
+  command = "npm run build" # Your build command (can vary based on your setup)
+
+[dev]
+  command = "npm start" # Local development command
+
+[context.production.environment]
+  NODE_ENV = "production" # Example environment variable
