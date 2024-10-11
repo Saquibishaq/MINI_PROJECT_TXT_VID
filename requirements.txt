@@ -2,7 +2,7 @@ absl-py==2.1.0
 annotated-types==0.7.0
 astunparse==1.6.3
 blinker==1.8.2
-blis==1.0.1
+blis==2.0.2
 catalogue==2.0.10
 certifi==2024.8.30
 charset-normalizer==3.3.2
