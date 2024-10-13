@@ -1,9 +1,9 @@
 [build]
-  publish = "dist" # Specify your build output directory
-  command = "npm run build" # Your build command (can vary based on your setup)
+  command = "pip install -r requirements.txt"
+  publish = "path_to_static_folder"  # If you have static files to serve, like HTML/CSS
+
+[build.environment]
+  PYTHON_VERSION = "3.8"
 
 [dev]
-  command = "npm start" # Local development command
-
-[context.production.environment]
-  NODE_ENV = "production" # Example environment variable
+  command = "flask run"
