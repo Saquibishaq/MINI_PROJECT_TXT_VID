@@ -1,9 +1,9 @@
-[build]
-  command = "pip install -r requirements.txt"
-  publish = "path_to_static_folder"  # If you have static files to serve, like HTML/CSS
+# [build]
+#   command = "pip install -r requirements.txt"
+#   publish = "path_to_static_folder"  # If you have static files to serve, like HTML/CSS
 
-[build.environment]
-  PYTHON_VERSION = "3.8"
+# [build.environment]
+#   PYTHON_VERSION = "3.8"
 
-[dev]
-  command = "flask run"
+# [dev]
+#   command = "flask run"
